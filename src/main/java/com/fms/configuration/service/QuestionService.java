@@ -2,6 +2,7 @@ package com.fms.configuration.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.core.DatabaseClient;
@@ -11,6 +12,7 @@ import org.springframework.util.CollectionUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import com.fms.configuration.dto.EditQuestionRequestDTO;
 import com.fms.configuration.dto.QuestionDTO;
 import com.fms.configuration.dto.QuestionRequestDTO;
 import com.fms.configuration.dto.QuestionResponseDTO;
@@ -85,6 +87,27 @@ public class QuestionService {
 				.bind("questionID", questionID).as(QuestionDTO.class).fetch()
 				.all();
 		return response;
+
+	}
+
+	public Mono<Question> editQuestion(
+			EditQuestionRequestDTO editQuestionRequestDTO) {
+
+		Mono<Question> questionMono = null;
+		if (Optional.ofNullable(editQuestionRequestDTO.getQuestion())
+				.isPresent()) {
+			questionMono = questionRepository.save(editQuestionRequestDTO
+					.getQuestion());
+		}
+
+		if (!CollectionUtils.isEmpty(editQuestionRequestDTO.getAnswers())) {
+			answerRepository.saveAll(editQuestionRequestDTO.getAnswers());
+		} else {
+			answerRepository.deleteByQuestionID(editQuestionRequestDTO
+					.getQuestion().getQuestionID());
+		}
+
+		return questionMono;
 
 	}
 
