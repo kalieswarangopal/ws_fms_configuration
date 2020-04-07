@@ -33,17 +33,20 @@ public class QuestionService {
 	@Autowired
 	DatabaseClient databaseClient;
 
-	public Mono<Question> createQuestion(QuestionRequestDTO questionRequestDTO) {
+	public Mono<Void> createQuestion(QuestionRequestDTO questionRequestDTO) {
 
+		Mono<Void> voidMono = Mono.empty();
 		Question question = mapQuestionRequestDTO(questionRequestDTO);
-		Mono<Question> questionMono = questionRepository.save(question);
 
 		if (!CollectionUtils.isEmpty(questionRequestDTO.getAnswers())) {
-			questionMono.map(value -> createAnswers(value.getQuestionID(),
-					questionRequestDTO.getAnswers()));
+			Mono<Question> questionMono = questionRepository.save(question);
+			voidMono = questionMono.map(Question::getQuestionID)
+					.flatMap(value -> createAnswers(value, questionRequestDTO.getAnswers())).then();
+		} else {
+			questionRepository.save(question).subscribe();
 		}
 
-		return questionMono;
+		return voidMono;
 
 	}
 
@@ -52,8 +55,7 @@ public class QuestionService {
 		Question question = new Question();
 		question.setFeedbackType(questionRequestDTO.getFeedbackType());
 		question.setAnswerType(questionRequestDTO.getAnswerType());
-		question.setQuestionDescription(questionRequestDTO
-				.getQuestionDescription());
+		question.setQuestionDescription(questionRequestDTO.getQuestionDescription());
 		return question;
 	}
 
@@ -65,15 +67,14 @@ public class QuestionService {
 			answerList.add(answer);
 		});
 
-		answerRepository.saveAll(answerList);
+		answerRepository.saveAll(answerList).subscribe();
 		return Mono.empty();
 	}
 
 	public Flux<QuestionResponseDTO> getQuestions() {
 
-		Flux<QuestionResponseDTO> response = databaseClient
-				.execute()
-				.sql("select q.questionid, q.questiondescription, q.feedbacktype, count(a.answerid) as totalanswers from question q left outer join answer a on q.questionid=a.questionid group by q.questionid;")
+		Flux<QuestionResponseDTO> response = databaseClient.execute().sql(
+				"select q.questionid, q.questiondescription, q.feedbacktype, count(a.answerid) as totalanswers from question q left outer join answer a on q.questionid=a.questionid group by q.questionid;")
 				.as(QuestionResponseDTO.class).fetch().all();
 		return response;
 
@@ -81,33 +82,34 @@ public class QuestionService {
 
 	public Flux<QuestionDTO> getQuestion(Integer questionID) {
 
-		Flux<QuestionDTO> response = databaseClient
-				.execute()
-				.sql("select q.questionid, q.questiondescription, q.feedbacktype, q.answertype, a.answerid, a.answertext from question q left join answer a on q.questionid=a.questionid where q.questionid = :questionID")
-				.bind("questionID", questionID).as(QuestionDTO.class).fetch()
-				.all();
+		Flux<QuestionDTO> response = databaseClient.execute().sql(
+				"select q.questionid, q.questiondescription, q.feedbacktype, q.answertype, a.answerid, a.answertext from question q left join answer a on q.questionid=a.questionid where q.questionid = :questionID")
+				.bind("questionID", questionID).as(QuestionDTO.class).fetch().all();
 		return response;
 
 	}
 
-	public Mono<Question> editQuestion(
-			EditQuestionRequestDTO editQuestionRequestDTO) {
+	public Mono<Question> editQuestion(EditQuestionRequestDTO editQuestionRequestDTO) {
 
 		Mono<Question> questionMono = null;
-		if (Optional.ofNullable(editQuestionRequestDTO.getQuestion())
-				.isPresent()) {
-			questionMono = questionRepository.save(editQuestionRequestDTO
-					.getQuestion());
+
+		if (Optional.ofNullable(editQuestionRequestDTO.getQuestion()).isPresent()) {
+			questionMono = questionRepository.save(editQuestionRequestDTO.getQuestion());
 		}
 
 		if (!CollectionUtils.isEmpty(editQuestionRequestDTO.getAnswers())) {
-			answerRepository.saveAll(editQuestionRequestDTO.getAnswers());
-		} else {
-			answerRepository.deleteByQuestionID(editQuestionRequestDTO
-					.getQuestion().getQuestionID());
+			answerRepository.saveAll(editQuestionRequestDTO.getAnswers()).subscribe();
 		}
 
 		return questionMono;
+
+	}
+
+	public Mono<Void> deleteQuestion(Integer id) {
+
+		answerRepository.deleteByQuestionID(id).subscribe();
+
+		return questionRepository.deleteById(id);
 
 	}
 

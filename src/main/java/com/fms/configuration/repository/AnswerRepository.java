@@ -6,11 +6,13 @@ import org.springframework.stereotype.Repository;
 
 import com.fms.configuration.entity.Answer;
 
+import reactor.core.publisher.Mono;
+
 @Repository
 public interface AnswerRepository extends
 		ReactiveCrudRepository<Answer, Integer> {
 
-	@Query("DELETE FROM answer WHERE questionid= = :questionID")
-	public void deleteByQuestionID(Integer questionID);
+	@Query("DELETE FROM answer WHERE questionid = :questionID")
+	public Mono<Integer> deleteByQuestionID(Integer questionID);
 
 }
